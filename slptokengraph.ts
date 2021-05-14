@@ -200,6 +200,7 @@ export class SlpTokenGraph {
             return this._isValid;
         }
         this._isValid = await this._slpValidator.isValidSlpTxid(this._tokenIdHex);
+        //@ts-ignore
         return this._isValid;
     }
 

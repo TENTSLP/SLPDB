@@ -17,10 +17,10 @@ export interface RpcConfig {
 export class Config {
 	static rpc = {
 		protocol: process.env.rpc_protocol ? process.env.rpc_protocol : 'http',
-		user: process.env.rpc_user ? process.env.rpc_user : 'bitcoin',
+		user: process.env.rpc_user ? process.env.rpc_user : 'tent',
 		pass: process.env.rpc_pass ? process.env.rpc_pass : 'password',
 		host: process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
-		port: process.env.rpc_port ? process.env.rpc_port : '8332',
+		port: process.env.rpc_port ? process.env.rpc_port : '16112',
 		limit: Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150"),
 		rpcMaxRetries: Number.parseInt(process.env.rpc_max_retries ? process.env.rpc_max_retries : "2"),
 		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000"),
@@ -85,13 +85,13 @@ export class Config {
 		}
 	}
 	static core = {
-		from: Number.parseInt(process.env.core_from ? process.env.core_from : "543375"),
-		from_testnet: Number.parseInt(process.env.core_from_testnet ? process.env.core_from_testnet : "1253801"),
+		from: Number.parseInt(process.env.core_from ? process.env.core_from : "1760001"),
+		from_testnet: Number.parseInt(process.env.core_from_testnet ? process.env.core_from_testnet : "37930"),
 		slp_mempool_ignore_length: Number.parseInt(process.env.core_slp_mempool_ignore_length ? process.env.core_slp_mempool_ignore_length : "1000000"),
 	}
 	static telemetry = {
-		enable: process.env.telemetry_enable ? ['1', 'true'].includes(process.env.telemetry_enable) : true,
-		host: process.env.telemetry_host ? process.env.telemetry_host : 'status.slpdb.io',
+		enable: process.env.telemetry_enable ? ['1', 'true'].includes(process.env.telemetry_enable) : false,
+		host: process.env.telemetry_host ? process.env.telemetry_host : 'slp-status.tent.app',
 		port: process.env.telemetry_port ? process.env.telemetry_port : 443,
 		advertised_host: process.env.telemetry_advertised_host ? process.env.telemetry_advertised_host : '',
 		secret: process.env.telemetry_secret ? process.env.telemetry_secret : ''

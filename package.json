@@ -1,8 +1,8 @@
 {
-  "name": "slpdb",
+  "name": "tentslpdb",
   "private": true,
   "version": "1.0.0",
-  "description": "Indexer for the Simple Ledger Protocol with real-time validation notifications.",
+  "description": "Indexer for the TENTSLP with real-time validation notifications.",
   "main": "index.js",
   "scripts": {
     "test": "mocha --timeout 1000000 --exit --require mocha-steps",
@@ -12,16 +12,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/simpleledger/SLPDB.git"
+    "url": "git+https://github.com/TENTSLP/TENTSLPDB.git"
   },
   "keywords": [
     "SLP"
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/simpleledger/SLPDB/issues"
+    "url": "https://github.com/TENTSLP/TENTSLPDB/issues"
   },
-  "homepage": "https://github.com/simpleledger/SLPDB#readme",
+  "homepage": "https://github.com/TENTSLP/TENTSLPDB#readme",
   "dependencies": {
     "@types/dotenv": "^6.1.0",
     "@types/ip": "^1.1.0",
@@ -33,13 +33,13 @@
     "@types/zeromq": "^4.6.3",
     "bcash": "^1.1.1",
     "bignumber.js": "^9.0.0",
-    "bitbox-sdk": "8.2.1",
+    "bitbox-sdk": "TENTSLP/bitbox-sdk#f79a4ec394b01411e0f038ceb8befe73a35ecf0f",
     "bitcoin-rpc-promise-retry": "^1.3.0",
-    "bitcore-lib-cash": "8.22.2",
+    "bitcore-lib-cash": "TENTSLP/bitcore-lib-tent",
     "bufio": "^1.0.7",
-    "cashaddrjs-slp": "^0.2.12",
+    "cashaddrjs-slp": "TENTSLP/cashaddrjs",
     "dotenv": "^6.0.0",
-    "fountainhead-core": "^0.0.12",
+    "fountainhead-core": "TENTSLP/fountainhead-core",
     "grpc-bchrpc-node": "^0.10.2",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
@@ -52,7 +52,7 @@
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",
     "p-queue": "3.1.0",
-    "slpjs": "^0.27.8",
+    "slpjs": "TENTSLP/tentslpjs",
     "synchronized-promise": "0.2.0",
     "traverse": "^0.6.6",
     "ts-node": "^7.0.1",

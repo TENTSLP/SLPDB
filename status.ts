@@ -120,7 +120,7 @@ export class SlpdbStatus {
     private static async toDbo() {
         let checkpoint = await SlpdbStatus.getSyncdCheckpoint();
 
-        let mempoolInfo = null;
+        let mempoolInfo = {};
         try {
             mempoolInfo = await RpcClient.getMempoolInfo();
         } catch (_) { }

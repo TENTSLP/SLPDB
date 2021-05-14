@@ -103,7 +103,7 @@ export class Bit {
         }
         let filter = TokenFilters();
         if (slpMsg.tokenIdHex && !filter.passesAllFilterRules(slpMsg.tokenIdHex)) {
-            console.log("[INFO] SLP txn filtered and ignored:", deserialized.hash);
+            console.log("[INFO] TENTSLP txn filtered and ignored:", deserialized.hash);
             return null;
         }
         return { txn: deserialized, slpMsg };
@@ -213,7 +213,7 @@ export class Bit {
 
 
     async syncSlpMempool(currentBchMempoolList?: string[], recursive=false, outerLoop=true) {
-        console.log(`[INFO] Syncing SLP Mempool...`);
+        console.log(`[INFO] Syncing TENTSLP Mempool...`);
         if (this._exit) {
             return;
         }
@@ -222,7 +222,7 @@ export class Bit {
             currentBchMempoolList = await RpcClient.getRawMemPool();
         }
 
-        console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
+        console.log('[INFO] TENT mempool txs =', currentBchMempoolList.length);
         
         // Perform a toposort on current bch mempool.
         const mempoolSlpTxs = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
@@ -258,8 +258,8 @@ export class Bit {
 
         if (outerLoop) {
             await this.removeExtraneousMempoolTxns();
-            console.log('[INFO] BCH mempool txn count:', (await RpcClient.getRawMemPool()).length);
-            console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+            console.log('[INFO] TENT mempool txn count:', (await RpcClient.getRawMemPool()).length);
+            console.log("[INFO] TENTSLP mempool txn count:", this.slpMempool.size);
         }
     }
 
@@ -294,7 +294,7 @@ export class Bit {
                     let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
                     this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });  // TODO: update to only cache slp outpoints?
                     console.log(`[INFO] _spentTxoCache.set ${prevOutpoint} -> ${txid} at ${blockIndex}`);
-                    // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
+                    // TODO: Scan for TENTSLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
                 });
             }
         });
@@ -317,7 +317,7 @@ export class Bit {
             let slp = await self.setSlpProp(deserialized, blockTime, t, blockIndex, blockSeenTokenIds);
 
             if (!self.slpMempool.has(txid) && syncComplete) {
-                console.log("[WARN] SLP transaction not in mempool:", txid);
+                console.log("[WARN] TENTSLP transaction not in mempool:", txid);
                 await self.handleMempoolTransaction(txid, serialized);
                 let syncResult = await Bit.sync(self, 'mempool', txid);
                 self._slpGraphManager.onTransactionHash!(syncResult!);
@@ -343,7 +343,7 @@ export class Bit {
             await crawlInternal(this, i, blockSeenTokenIdsForLazyLoading);
         }
 
-        console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} BCH tx | ${stack.length} SLP tx`);
+        console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} TENT tx | ${stack.length} TENTSLP tx`);
         return [ result, spentOutpoints ];
     }
 
@@ -535,7 +535,7 @@ export class Bit {
         }
         let res = await this.handleMempoolTransaction(txid, txnBuf);
         if (res.added) {
-            console.log('[ZMQ-SUB] Possible SLP transaction added:', txid);
+            console.log('[ZMQ-SUB] Possible TENTSLP transaction added:', txid);
             let syncResult = await Bit.sync(this, 'mempool', txid);
             if (!this._slpGraphManager.zmqPubSocket) {
                 this._slpGraphManager.zmqPubSocket = this.outsock;
@@ -635,7 +635,7 @@ export class Bit {
                     }
                 }
 
-                // search for SLP output burns in non-SLP or invalid SLP transactions
+                // search for TENTSLP output burns in non-TENTSLP or invalid TENTSLP transactions
                 console.time(`burnSearch-${index}`);
                 for (let [txo, spentIn] of spentOutpoints) {
                     if (globalUtxoSet.has(txo)) {
@@ -684,7 +684,7 @@ export class Bit {
                 let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(zmqHash);
                 if (!txn && !self.slpTxnNotificationIgnoreList.has(zmqHash)) {
                     if (!txhex) {
-                        throw Error("Must provide 'txhex' if txid is not in the SLP mempool");
+                        throw Error("Must provide 'txhex' if txid is not in the TENTSLP mempool");
                     }
                     let res = self.applySlpTxnFilter(txhex);
                     if (res) {
@@ -699,7 +699,7 @@ export class Bit {
 
                     try {
                         await self.db.unconfirmedInsert(content);
-                        console.log(`[INFO] SLP mempool transaction added: ${zmqHash}`);
+                        console.log(`[INFO] TENTSLP mempool transaction added: ${zmqHash}`);
                         result.set(zmqHash, txn.toString());
                     } catch (e) {
                         if (e.code == 11000) {
@@ -711,7 +711,7 @@ export class Bit {
                         }
                     }
                 } else {
-                    console.log(`[INFO] Skipping non-SLP transaction: ${zmqHash}`);
+                    console.log(`[INFO] Skipping non-TENTSLP transaction: ${zmqHash}`);
                 }
                 return result;
             } else {
@@ -757,9 +757,9 @@ export class Bit {
         }
 
         if (hadReorg) {
-            console.log("[INFO] SLPDB checkpoint was rolled back because SLPDB checkpoint is ahead of the chain tip.");
+            console.log("[INFO] TENTSLPDB checkpoint was rolled back because TENTSLPDB checkpoint is ahead of the chain tip.");
         } else {
-            console.log("[INFO] SLPDB checkpoint is as least as long as the chain height.")
+            console.log("[INFO] TENTSLPDB checkpoint is as least as long as the chain height.")
         }
 
         // Make sure the current tip hash matches chain best hash, otherwise we need to rollback again
