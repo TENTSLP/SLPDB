@@ -25,7 +25,7 @@ import { GrpcClient } from 'grpc-bchrpc-node';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const slpLokadIdHex = "534c5000";
-const Block = require('bcash/lib/primitives/block');
+const Block = require('bitcore-lib-cash/lib/block/block');
 const BufferReader = require('bufio/lib/reader');
 
 const bitbox = new BITBOX();
@@ -271,14 +271,14 @@ export class Bit {
 
         console.log('[INFO] Crawling block', blockIndex, 'hash:', blockHash);
         const blockHex = <string>await RpcClient.getRawBlock(blockContent.hash);
-        const block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+        const block = Block.fromString(blockHex);
 
         console.time(`Toposort-${blockIndex}`);
         const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
         const spentOutpoints: [string,Uint8Array][] = [];
-        console.log(`[DEBUG] Block ${blockContent.hash} has ${block.txs.length} txns`);
-        block.txs.forEach((t: any, i: number) => {
-            const serialized: Buffer = t.toRaw();
+        console.log(`[DEBUG] Block ${blockContent.hash} has ${block.transactions.length} txns`);
+        block.transactions.forEach((t: any, i: number) => {
+            const serialized: Buffer = t.toBuffer();
             const hash = t.hash().reverse();
             for (let input of t.inputs) {
                 spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
@@ -343,7 +343,7 @@ export class Bit {
             await crawlInternal(this, i, blockSeenTokenIdsForLazyLoading);
         }
 
-        console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} TENT tx | ${stack.length} TENTSLP tx`);
+        console.log(`[INFO] Block ${blockIndex} processed : ${block.transactions.length} TENT tx | ${stack.length} TENTSLP tx`);
         return [ result, spentOutpoints ];
     }
 
