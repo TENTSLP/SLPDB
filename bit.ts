@@ -279,16 +279,19 @@ export class Bit {
         console.log(`[DEBUG] Block ${blockContent.hash} has ${block.transactions.length} txns`);
         block.transactions.forEach((t: any, i: number) => {
             const serialized: Buffer = t.toBuffer();
-            const hash = t.hash().reverse();
+
+            // ISSUE
+            const hash = t.hash //.readReverse();
             for (let input of t.inputs) {
-                spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
+                spentOutpoints.push([input.prevTxId.toString("hex") + ":" + input.outputIndex, hash]);
+
             }
             let res = this.applySlpTxnFilter(serialized);
             if (res) {
                 // @ts-ignore
                 const deserialized = res.txn;
                 const txid = deserialized.hash;
-                blockTxCache.set(txid, {deserialized, serialized});
+                blockTxCache.set(txid, { deserialized, serialized });
                 RpcClient.transactionCache.set(txid, serialized);
                 deserialized.inputs.forEach((input) => {
                     let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
