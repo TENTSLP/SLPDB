@@ -5,13 +5,65 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Start From Checkpoint (ts-node)",
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
+            "args": ["${workspaceFolder}/index.ts", "run"],
+            "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+            "sourceMaps": true,
+            "cwd": "${workspaceRoot}",
+            "protocol": "inspector",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            //"preLaunchTask": "tsc",
+            "name": "Run Mocha",
+            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+            "args": ["--timeout", "1000000", "--exit", "--require", "mocha-steps"],
+            "cwd": "${workspaceRoot}",
+            "outFiles": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start From 574710",
             "program": "${workspaceFolder}/index.js",
-            "outFiles": [
-                "${workspaceFolder}/**/*.js"
-            ]
-        }
+            "args": ["run", "--startHeight", "574710"],
+            "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Reprocess token ID",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["reprocess", "4de69e374a8ed21cbddd47f2338cc0f479dc58daa2bbe11cd604ca488eca0ddf"],
+            "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start tokens from scratch",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["run", "--reprocess"],
+            "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Fix (untested)",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["fix", "580609"],
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Current File",
+            "program": "${file}",
+            "outFiles": ["${workspaceFolder}/regtest/**/*.js"], 
+            "console": "integratedTerminal"
+        },
     ]
 }

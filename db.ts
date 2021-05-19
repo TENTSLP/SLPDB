@@ -1,156 +1,234 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
-import { Config, DbConfig } from './config';
-
-export interface MempoolItem {
-
-}
-
-export interface BlockItem {
-    hash: string;
-    confirmations: number;
-    size: number;
-    height: number;
-    version: number;
-    versionHex: string;
-    merkleroot: string;
-    tx: string[];
-    time: string;
-    mediantime: number;
-    nonce: number;
-    bits: string;
-    difficulty: number;
-    chainwork: string;
-    nextblockhash: string;
-}
+import { DbConfig } from './config';
+import { TNATxn } from './tna';
+import { GraphTxnDbo, TokenDBObject } from "./interfaces";
+import { GraphMap } from './graphmap';
 
 export class Db {
-    config: DbConfig;
     db!: MongoDb;
     mongo!: MongoClient;
+    dbUrl: string;
+    dbName: string;
+    config: DbConfig;
 
-    constructor() {
-        this.config = Config.db;
+    constructor({ dbUrl, dbName, config }: { dbUrl: string, dbName: string, config: DbConfig }) {
+        this.dbUrl = dbUrl;
+        this.dbName = dbName;
+        this.config = config;
     }
 
-    async init() {
-        let client: MongoClient;
-        try {
-            //console.log("Initializing Mongo db...")
-            client = await MongoClient.connect(this.config.url, {useNewUrlParser: true})
-            this.db = client.db(this.config.name)
-            this.mongo = <MongoClient>client;
-            //console.log("Mongo db initialized.")
-        } catch(err) {
-            if (err) console.log('init error:',err)
+    private async checkClientStatus(): Promise<boolean> {
+        if (!this.mongo) {
+            this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+            this.db = this.mongo.db(this.dbName);
+            return true;
         }
+        return false;
+    }
+
+    async drop() {
+        await this.db.dropDatabase();
     }
 
     async exit() {
-        await this.mongo.close()
+        await this.mongo.close();
     }
 
-    mempoolinsert(item: MempoolItem) {
-        if(this.db) {
-            return this.db.collection('unconfirmed').insertMany([item])
+    async statusUpdate(status: any) {
+        await this.checkClientStatus();
+        await this.db.collection('statuses').deleteMany({ "context": status.context });
+        return await this.db.collection('statuses').insertOne(status);
+    }
+
+    async statusFetch(context: string) {
+        await this.checkClientStatus();
+        return await this.db.collection('statuses').findOne({ "context": context });
+    }
+
+    private async tokenInsertReplace(token: any) {
+        await this.checkClientStatus();
+        await this.db.collection('tokens').replaceOne({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, token, { upsert: true });
+    }
+
+    async tokenDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
+        return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex });
+    }
+
+    async tokenFetch(tokenIdHex: string): Promise<TokenDBObject|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex });
+    }
+
+    async tokenFetchAll(): Promise<TokenDBObject[]|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('tokens').find({}).toArray();
+    }
+
+    async tokenReset() {
+        await this.checkClientStatus();
+        await this.db.collection('tokens').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] token collection reset ERR ', err);
+            throw err;
+        });
+    }
+
+    async graphItemsUpsert(graph: GraphMap) {
+        await this.checkClientStatus();        
+        console.time("ToDBO");
+        let { itemsToUpdate, tokenDbo, txidsToDelete } = GraphMap.toDbos(graph);
+        console.timeEnd("ToDBO");
+        for (const i of itemsToUpdate) {
+            if (txidsToDelete.includes(i.graphTxn.txid)) {
+                continue;
+            }
+            let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": i.tokenDetails.tokenIdHex, "graphTxn.txid": i.graphTxn.txid }, i, { upsert: true });
+            if (res.modifiedCount) {
+                console.log(`[DEBUG] graphItemsUpsert - modified: ${i.graphTxn.txid}`);
+            } else if (res.upsertedCount) {
+                console.log(`[DEBUG] graphItemsUpsert - inserted: ${i.graphTxn.txid}`);
+            } else {
+                throw Error(`Graph record was not updated: ${i.graphTxn.txid} (token: ${i.tokenDetails.tokenIdHex})`);
+            }
+        }
+        await this.tokenInsertReplace(tokenDbo);
+
+        for (const txid of txidsToDelete) {
+            await this.db.collection("graphs").deleteMany({ "graphTxn.txid": txid });
+            await this.db.collection("confirmed").deleteMany({ "tx.h": txid });
+            await this.db.collection("unconfirmed").deleteMany({ "tx.h": txid });
         }
     }
 
-    async mempoolreset() {
-        await this.db.collection('unconfirmed').deleteMany({}).catch(function(err) {
-            console.log('mempoolreset ERR ', err)
-            process.exit()
+    async graphDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
+        return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
+    }
+
+    async graphItemDelete(txid: string) {
+        await this.checkClientStatus();
+        return await this.db.collection('graphs').deleteMany({ "graphTxn.txid": txid });
+    }
+
+    async graphFetch(tokenIdHex: string, lastPrunedHeight?: number): Promise<GraphTxnDbo[]> {
+        await this.checkClientStatus();
+        if (lastPrunedHeight) {
+            return await this.db.collection('graphs').find({
+                "tokenDetails.tokenIdHex": tokenIdHex,
+                "$or": [ { "graphTxn._pruneHeight": { "$gt": lastPrunedHeight } }, { "graphTxn._pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
+            }).toArray();
+        } else {
+            return await this.db.collection('graphs').find({
+                "tokenDetails.tokenIdHex": tokenIdHex
+            }).toArray();
+        }
+    }
+
+    async graphTxnFetch(txid: string): Promise<GraphTxnDbo|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('graphs').findOne({ "graphTxn.txid": txid });
+    }
+
+    async graphReset() {
+        await this.checkClientStatus();
+        await this.db.collection('graphs').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] graphs collection reset ERR ', err)
+            throw err;
         })
     }
 
-    async mempoolsync(items: MempoolItem[]) {
+    async unconfirmedInsert(item: TNATxn) {
+        await this.checkClientStatus();
+        console.log(`Added unconfirmed: ${item.tx.h}`);
+        return await this.db.collection('unconfirmed').insertMany([item]);
+    }
 
+    async unconfirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
-            console.log('mempoolsync ERR ', err)
+            console.log('[ERROR] mempoolreset ERR ', err);
+            throw err;
         })
-
-        let index = 0
-        while (true) {
-            let chunk = items.splice(0, 1000)
-            if (chunk.length > 0) {
-                await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
-                // duplicates are ok because they will be ignored
-                    if (err.code !== 11000) {
-                        console.log('## ERR ', err, items)
-                        process.exit()
-                    }
-                })
-                //console.log('..chunk ' + index + ' processed ...', new Date().toString())
-                index++
-            } else {
-                break
-            }
-        }
-        //console.log('Mempool synchronized with ' + items.length + ' items')
     }
 
-    async blockreset() {
+    async unconfirmedTxids(): Promise<string[]> {
+        await this.checkClientStatus();
+        let res: TNATxn[] = await this.db.collection('unconfirmed').find({}).toArray();
+        return res.map(u => u.tx.h);
+    }
+
+    async unconfirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
+        let res = await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
+        return res;
+    }
+
+    async unconfirmedDelete(txids: string[]): Promise<number|undefined> {
+        await this.checkClientStatus();
+        if (txids.length === 0) {
+            return 0;
+        }
+        let res = (await this.db.collection('unconfirmed').deleteMany({ "$or": txids.map(txid => { return { "tx.h": txid }})})).deletedCount;
+        return res;
+    }
+
+    async unconfirmedProcessedSlp(): Promise<string[]> {
+        await this.checkClientStatus();
+        return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
+    }
+
+    async confirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
+    }
+
+    async confirmedDelete(txid: string): Promise<any> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').deleteMany({ "tx.h": txid });
+    }
+
+    async confirmedFetchForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').find({ "blk.i": { "$gte": blockIndex }}).toArray();
+    }
+
+    async confirmedDeleteForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
+        console.log(`[WARN] Deleting all transactions with block greater than or equal to ${blockIndex}.`)
+        return await this.db.collection('confirmed').deleteMany({ "blk.i": { "$gte": blockIndex }});
+    }
+
+    async confirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('confirmed').deleteMany({}).catch(function(err) {
-            console.log('blockreset ERR ', err)
-            process.exit()
+            console.log('[ERROR] confirmedReset ERR ', err)
+            throw err;
         })
     }
 
-    async blockreplace(items: BlockItem[], block_index: number) {
-        console.log('Deleting all blocks greater than or equal to', block_index)
-        await this.db.collection('confirmed').deleteMany({
-            'blk.i': {
-                $gte: block_index
-            }
-        }).catch(function(err) {
-            console.log('blockreplace ERR ', err)
-            process.exit()
-        })
-        console.log('Updating block', block_index, 'with', items.length, 'items')
-        let index = 0
-        while (true) {
-            let chunk = items.slice(index, index+1000)
-            if (chunk.length > 0) {
-                await this.db.collection('confirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
-                    // duplicates are ok because they will be ignored
-                    if (err.code !== 11000) {
-                        console.log('blockreplace ERR ', err, items)
-                        process.exit()
-                    }
-                })
-                //console.log('\tchunk ' + index + ' processed ...')
-                index+=1000
-            } else {
-                break
-            }
+    async confirmedReplace(items: TNATxn[], blockIndex: number) {
+        await this.checkClientStatus();
+
+        if (items.filter(i => !i.blk).length > 0) {
+            throw Error("Attempted to add items without BLK property.");
+        }
+
+        if (blockIndex) {
+            console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
+        }
+        
+        for (let i=0; i < items.length; i++) {
+            await this.db.collection('confirmed').replaceOne({ "tx.h": items[i].tx.h }, items[i], { upsert: true });
         }
     }
 
-    async blockinsert(items: BlockItem[], block_index: number) {
-        let index = 0
-        while (true) {
-        let chunk = items.slice(index, index+1000)
-        if (chunk.length > 0) {
-            try {
-                await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                //console.log('..chunk ' + index + ' processed ...')
-            } catch (e) {
-            // duplicates are ok because they will be ignored
-                if (e.code !== 11000) {
-                    console.log('blockinsert ERR ', e, items, block_index)
-                    process.exit()
-                }
-            }
-            index+=1000
-        } else {
-            break
-        }
-        }
-        //console.log('Block ' + block_index + ' inserted ')
-    }
+    async confirmedIndex() {        
+        await this.checkClientStatus();
 
-    async blockindex() {
-        console.log('* Indexing MongoDB...')
+        console.log('[INFO] * Indexing MongoDB...')
         console.time('TotalIndex')
 
         if (this.config.index) {
@@ -160,7 +238,7 @@ export class Db {
                 let keys: string[] = this.config.index[collectionName].keys
                 let fulltext: string[] = this.config.index[collectionName].fulltext
                 if (keys) {
-                    console.log('Indexing keys...')
+                    console.log('[INFO] Indexing keys...')
                     for(let i=0; i<keys.length; i++) {
                         let o: { [key:string]: number } = {}
                         o[keys[i]] = 1
@@ -174,14 +252,14 @@ export class Db {
                             //console.log('* Created index for ', keys[i])
                         }
                         } catch (e) {
-                            console.log('blockindex error:', e)
-                            process.exit()
+                            console.log('[ERROR] blockindex error:', e)
+                            throw e;
                         }
                         console.timeEnd('Index:' + keys[i])
                     }
                 }
-                if (fulltext) {
-                    console.log('Creating full text index...')
+                if (fulltext && fulltext.length > 0) {
+                    console.log('[INFO] Creating full text index...')
                     let o: { [key:string]: string } = {}
                     fulltext.forEach(function(key) {
                         o[key] = 'text'
@@ -190,8 +268,8 @@ export class Db {
                     try {
                         await this.db.collection(collectionName).createIndex(o, { name: 'fulltext' })
                     } catch (e) {
-                        console.log('blockindex error:', e)
-                        process.exit()
+                        console.log('[ERROR] blockindex error:', e)
+                        throw e;
                     }
                     console.timeEnd('Fulltext search for ' + collectionName)
                 }
@@ -203,15 +281,12 @@ export class Db {
 
         try {
             let result = await this.db.collection('confirmed').indexInformation(<any>{ full: true }) // <- No MongoSession passed
-            //console.log('* Confirmed Index = ', result)
+            console.log('* Confirmed Index = ', result)
             result = await this.db.collection('unconfirmed').indexInformation(<any>{ full: true }) // <- No MongoSession passed
-            //console.log('* Unonfirmed Index = ', result)
+            console.log('* Unonfirmed Index = ', result)
         } catch (e) {
-            console.log('* Error fetching index info ', e)
-            process.exit()
+            console.log('[INFO] * Error fetching index info ', e)
+            throw e;
         }
     }
 }
-// module.exports = {
-//   init: init, exit: exit, block: block, mempool: mempool
-// }

@@ -1,0 +1,61 @@
+version: "3.5"
+services:
+  bitcoin1: # the node connected to SLPDB via RPC and zmq
+    image: "bchn"
+    restart: always
+    build:
+      context: "./bitcoind"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
+    expose:
+      - "18333"
+    ports:
+      - "18443:18443"
+      - "28332:28332"
+    volumes:
+      - ./bitcoind/bitcoin.conf:/data/bitcoin.conf
+  bitcoin2: # the node not connected to SLPDB
+    image: "bchn"
+    restart: always
+    build:
+      context: "./bitcoind"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
+    expose:
+      - "18333"
+    ports:
+      - "18444:18443"
+    volumes:
+      - ./bitcoind/bitcoin.conf:/data/bitcoin.conf
+    depends_on: 
+      - bitcoin1
+  mongo:
+    image: mongo:4.4
+    restart: always
+    # entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --quiet 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    ports:
+      - "26017:27017"
+    depends_on: 
+      - bitcoin1
+      - bitcoin2
+  slpdb:
+    build:
+      context: ".."
+      dockerfile: "./regtest/slpdb/Dockerfile"
+    image: slpdb
+    restart: always
+    depends_on:
+      - mongo
+    ports:
+      - "27339:27339"
+    volumes:
+      - .:/usr/src/SLPDB/regtest
+      - ..:/usr/src/SLPDB/test
